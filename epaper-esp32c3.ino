@@ -2,7 +2,6 @@
 #define ENABLE_GxEPD2_GFX 0
 
 #include <GxEPD2_BW.h>
-// #include <GxEPD2_3C.h>
 #include <Fonts/FreeMonoBold12pt7b.h>
 #include <Adafruit_NeoPixel.h>
 #include <cstdlib>
@@ -17,29 +16,33 @@
   SDA  = 6
 */
 
-GxEPD2_BW<GxEPD2_213_BN, GxEPD2_213_BN::HEIGHT> display(GxEPD2_213_BN(SS, 1, 2, 3));
-// GxEPD2_3C<GxEPD2_213_Z98c, GxEPD2_213_Z98c::HEIGHT> display(GxEPD2_213_Z98c(SS, 1, 2, 3));
+constexpr auto DEBUG = false;
+
+constexpr auto HEIGHT = GxEPD2_213_BN::HEIGHT;
+constexpr auto WIDTH = GxEPD2_213_BN::WIDTH_VISIBLE;
+
+GxEPD2_BW<GxEPD2_213_BN, HEIGHT> display(GxEPD2_213_BN(SS, 1, 2, 3));
 
 void setup()
 {
     pinMode(8, OUTPUT);
     digitalWrite(8, HIGH);
 
-    display.init(115200, false, 50, false);
+    int baud = DEBUG ? 115200 : 0;
+    display.init(baud, true, 50, false);
 
     Adafruit_NeoPixel strip = Adafruit_NeoPixel(1, 7, NEO_GRB + NEO_KHZ800);
-    strip.begin(); // Initialize the LED strip
-    strip.clear(); // Turn off all LEDs
-    strip.show();  // Send the updated color to the strip
+    strip.begin();
+    strip.clear();
+    strip.show();
 
     // clearWindow();
+    // hellloWorld();
     // circles();
     // fuzz();
+
     gameOfLife();
 }
-
-#define HEIGHT 250
-#define WIDTH 128
 
 std::array<std::array<bool, HEIGHT>, WIDTH> grid{0};
 std::array<std::array<bool, HEIGHT>, WIDTH> newGrid{0};
