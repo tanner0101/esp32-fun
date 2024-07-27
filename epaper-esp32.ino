@@ -2,46 +2,107 @@
 #define ENABLE_GxEPD2_GFX 0
 
 #include <GxEPD2_BW.h>
+// #include <GxEPD2_3C.h>
 #include <Fonts/FreeMonoBold12pt7b.h>
 #include <Adafruit_NeoPixel.h>
-#include <cstdlib>
 #include <ctime>
 
-/*
-  DC   = 1
-  RES  = 2
-  BUSY = 3
-  SCL  = 4
-  CS   = 5
-  SDA  = 6
-*/
+constexpr auto EPD_DC = 1;
+constexpr auto EPD_RES = 2;
+constexpr auto EPD_BUSY = 3;
+// constexpr auto EPD_SCL = 4;
+// constexpr auto EPD_SDA = 6;
+constexpr auto EPD_CS = 7;
 
-constexpr auto DEBUG = false;
+constexpr auto DEBUG = true;
 
 constexpr auto HEIGHT = GxEPD2_213_BN::HEIGHT;
 constexpr auto WIDTH = GxEPD2_213_BN::WIDTH_VISIBLE;
+GxEPD2_BW<GxEPD2_213_BN, HEIGHT> display(GxEPD2_213_BN(EPD_CS, EPD_DC, EPD_RES, EPD_BUSY));
 
-GxEPD2_BW<GxEPD2_213_BN, HEIGHT> display(GxEPD2_213_BN(SS, 1, 2, 3));
+// constexpr auto HEIGHT = GxEPD2_213_Z19c::HEIGHT;
+// constexpr auto WIDTH = GxEPD2_213_Z19c::WIDTH_VISIBLE;
+// GxEPD2_3C<GxEPD2_213_Z19c, GxEPD2_213_Z19c::HEIGHT> display(GxEPD2_213_Z19c(EPD_CS, EPD_DC, EPD_RES, EPD_BUSY));
+
+constexpr auto BAUD = 115200;
 
 void setup()
 {
-    pinMode(8, OUTPUT);
-    digitalWrite(8, HIGH);
+    // pinMode(5, OUTPUT);
+    // pinMode(17, OUTPUT);
+    // pinMode(16, OUTPUT);
+    // pinMode(4, OUTPUT);
+    // digitalWrite(EPD_CS, HIGH);
 
-    int baud = DEBUG ? 115200 : 0;
-    display.init(baud, true, 50, false);
+    Serial.begin(BAUD);
 
-    Adafruit_NeoPixel strip = Adafruit_NeoPixel(1, 7, NEO_GRB + NEO_KHZ800);
-    strip.begin();
-    strip.clear();
-    strip.show();
+    display.init(BAUD, true, 50, false);
+
+    // Adafruit_NeoPixel strip = Adafruit_NeoPixel(1, 8, NEO_GRB + NEO_KHZ800);
+    // strip.begin();
+    // strip.clear();
+    // strip.show();
+    // strip.setPixelColor(0, strip.Color(255, 0, 0));
 
     // clearWindow();
-    // hellloWorld();
-    // circles();
+    // helloWorld();
+    hypnotize();
     // fuzz();
 
-    gameOfLife();
+    // gameOfLife();
+    // drawMandelbrot();
+
+    display.hibernate();
+}
+
+void loop()
+{
+}
+
+bool isInMandelbrot(int16_t x, int16_t y, int max_iteration)
+{
+    constexpr float X_SCALE = 1.5f / WIDTH;
+    constexpr float Y_SCALE = 2.0f / HEIGHT;
+    constexpr float X_OFFSET = -1.25f;
+    constexpr float Y_OFFSET = -1.0f;
+
+    float real = static_cast<float>(x) * X_SCALE + X_OFFSET;
+    float imag = static_cast<float>(y) * Y_SCALE + Y_OFFSET;
+    float zr = 0.0f;
+    float zi = 0.0f;
+    float zr2 = 0.0f;
+    float zi2 = 0.0f;
+    int iteration = 0;
+
+    while (zr2 + zi2 < 4.0f && iteration < max_iteration)
+    {
+        zi = 2.0f * zr * zi + imag;
+        zr = zr2 - zi2 + real;
+        zr2 = zr * zr;
+        zi2 = zi * zi;
+        iteration++;
+    }
+
+    return iteration == max_iteration;
+}
+
+void drawMandelbrot()
+{
+    display.fillScreen(GxEPD_WHITE);
+
+    for (int i = 3; i < 100; ++i)
+    {
+        for (int16_t y = 0; y < HEIGHT; y++)
+        {
+            for (int16_t x = 0; x < WIDTH; x++)
+            {
+                const auto color = isInMandelbrot(x, y, i) ? GxEPD_BLACK : GxEPD_WHITE;
+                display.writePixel(x, y, color);
+            }
+        }
+        Serial.printf("mandelbrot iter = %d\n", i);
+        display.display(true);
+    }
 }
 
 std::array<std::array<bool, HEIGHT>, WIDTH> grid{0};
@@ -82,12 +143,12 @@ void randomSeed()
     // Seed the random number generator with the current time
     std::srand(static_cast<unsigned>(std::time(0)));
 
-    // Randomly populate the grid
+    int density = std::max(std::rand() % 20, 2);
     for (int x = 0; x < WIDTH; ++x)
     {
         for (int y = 0; y < HEIGHT; ++y)
         {
-            grid[x][y] = std::rand() % 10 == 0;
+            grid[x][y] = std::rand() % density == 0;
         }
     }
 }
@@ -137,27 +198,30 @@ void fuzz()
     }
 }
 
-void circles()
+void hypnotize()
 {
-    display.fillScreen(GxEPD_WHITE);
-
-    int16_t r = 5;
+    int r = 5;
     uint16_t x = display.width() / 2;
     uint16_t y = display.height() / 2;
 
+    int z = 0;
     while (true)
     {
-        for (const auto color : {GxEPD_BLACK, GxEPD_WHITE})
-        {
-            for (int i = 0; i < 27; ++i)
-            {
-                display.drawCircle(x, y, r + i * 5, color);
-                display.display(true);
-            }
-        }
-    }
+        display.fillScreen(GxEPD_WHITE);
 
-    display.hibernate();
+        for (int i = 0; i < 28; ++i)
+        {
+            display.drawCircle(x, y, i * r + z, GxEPD_BLACK);
+        }
+
+        ++z;
+        if (z >= r)
+        {
+            z = 0;
+        }
+
+        display.display(true);
+    }
 }
 
 void helloWorld()
@@ -174,22 +238,11 @@ void helloWorld()
     uint16_t x = ((display.width() - tbw) / 2) - tbx;
     uint16_t y = ((display.height() - tbh) / 2) - tby;
 
-    display.setFullWindow();
-    display.firstPage();
+    display.fillScreen(GxEPD_WHITE);
 
-    do
-    {
-        display.fillScreen(GxEPD_WHITE);
-
-        display.setCursor(x, y);
-        display.print("Hello, world");
-
-        // display.setTextColor(display.epd2.hasColor ? GxEPD_RED : GxEPD_BLACK);
-        // display.getTextBounds(lineTwo, 0, 0, &tbx, &tby, &tbw, &tbh);
-        // x = ((display.width() - tbw) / 2) - tbx;
-        // display.setCursor(x, y + tbh);
-        // display.print("This is cool");
-    } while (display.nextPage());
+    display.setCursor(x, y);
+    display.print("Hello, world");
+    display.display(true);
 }
 
 void clearWindow()
@@ -200,8 +253,4 @@ void clearWindow()
     {
         display.fillScreen(GxEPD_WHITE);
     } while (display.nextPage());
-}
-
-void loop()
-{
 }
