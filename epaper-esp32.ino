@@ -7,6 +7,7 @@
 #include <Adafruit_NeoPixel.h>
 #include <ctime>
 #include <string>
+#include <esp_sleep.h>
 
 class EPD32
 {
@@ -15,7 +16,8 @@ class EPD32
         init,
         menuIdle,
         startProgram,
-        runProgram
+        runProgram,
+        idle
     };
 
     State state{State::init};
@@ -47,14 +49,25 @@ class EPD32
 
     static constexpr auto BAUD = 115200;
 
-    static constexpr auto BUTTON_OUT = 8;
-    static constexpr auto BUTTON_IN = 10;
+    static constexpr auto BUTTON_IN = 0;
 
     GxEPD2_BW<GxEPD2_213_BN, HEIGHT> display{GxEPD2_213_BN(EPD_CS, EPD_DC, EPD_RES, EPD_BUSY)};
 
+    bool ignoreButtonDown{false};
+
     bool buttonDown()
     {
+        if (ignoreButtonDown)
+        {
+            return false;
+        }
+
         return digitalRead(BUTTON_IN);
+    }
+
+    bool buttonUp()
+    {
+        return !digitalRead(BUTTON_IN);
     }
 
     const char *programName(Program &program)
@@ -131,11 +144,22 @@ class EPD32
             {
                 const auto color = isInMandelbrot(x, y, i) ? GxEPD_BLACK : GxEPD_WHITE;
                 display.writePixel(x, y, color);
+                if (EPD32::cancel)
+                {
+                    EPD32::cancel = false;
+                    Serial.println("cancel mandelbrot");
+                    return;
+                }
             }
         }
         Serial.printf("mandelbrot iter = %d\n", i);
         display.display(true);
         ++i;
+
+        if (i >= 30)
+        {
+            state = State::idle;
+        }
     }
 
     std::array<std::array<bool, HEIGHT>, WIDTH> grid{0};
@@ -186,33 +210,38 @@ class EPD32
         }
     }
 
-    void gameOfLife()
+    void startGameOfLife()
     {
+        clearWindow(true);
         randomSeed();
+    }
 
-        while (true)
+    void runGameOfLife()
+    {
+        for (int x = 0; x < WIDTH; ++x)
         {
-            display.fillScreen(GxEPD_WHITE);
-
-            for (int x = 0; x < WIDTH; ++x)
+            for (int y = 0; y < HEIGHT; ++y)
             {
-                for (int y = 0; y < HEIGHT; ++y)
+                int neighbors = countNeighbors(x, y);
+                if (grid[x][y])
                 {
-                    int neighbors = countNeighbors(x, y);
-                    if (grid[x][y])
-                    {
-                        newGrid[x][y] = (neighbors == 2 || neighbors == 3);
-                    }
-                    else
-                    {
-                        newGrid[x][y] = (neighbors == 3);
-                    }
-                    display.writePixel(x, y, newGrid[x][y] ? GxEPD_BLACK : GxEPD_WHITE);
+                    newGrid[x][y] = (neighbors == 2 || neighbors == 3);
+                }
+                else
+                {
+                    newGrid[x][y] = (neighbors == 3);
+                }
+                display.writePixel(x, y, newGrid[x][y] ? GxEPD_BLACK : GxEPD_WHITE);
+                if (EPD32::cancel)
+                {
+                    EPD32::cancel = false;
+                    Serial.println("cancel game of life");
+                    return;
                 }
             }
-            grid.swap(newGrid);
-            display.display(true);
         }
+        grid.swap(newGrid);
+        display.display(true);
     }
 
     void fuzz()
@@ -231,30 +260,32 @@ class EPD32
         }
     }
 
-    void hypnotize()
+    void startHypnotize()
     {
-        int r = 5;
-        uint16_t x = display.width() / 2;
-        uint16_t y = display.height() / 2;
+        i = 0;
+        clearWindow(false);
+    }
 
-        int z = 0;
-        while (true)
+    void runHypnotize()
+    {
+        display.fillScreen(GxEPD_WHITE);
+
+        const int r = 5;
+        const uint16_t x = display.width() / 2;
+        const uint16_t y = display.height() / 2;
+
+        for (int j = 0; j < 28; ++j)
         {
-            display.fillScreen(GxEPD_WHITE);
-
-            for (int i = 0; i < 28; ++i)
-            {
-                display.drawCircle(x, y, i * r + z, GxEPD_BLACK);
-            }
-
-            ++z;
-            if (z >= r)
-            {
-                z = 0;
-            }
-
-            display.display(true);
+            display.drawCircle(x, y, j * r + i, GxEPD_BLACK);
         }
+
+        ++i;
+        if (i >= r)
+        {
+            i = 0;
+        }
+
+        display.display(true);
     }
 
     void helloWorld()
@@ -295,16 +326,29 @@ class EPD32
         } while (display.nextPage() && !partial);
     }
 
+    void sleep()
+    {
+
+        esp_deep_sleep_enable_gpio_wakeup(BUTTON_IN, ESP_GPIO_WAKEUP_GPIO_HIGH);
+        Serial.println("Going to sleep now");
+        delay(1000);
+        esp_deep_sleep_start();
+    }
+
     void _run()
     {
+        if (buttonUp())
+        {
+            ignoreButtonDown = false;
+        }
 
         switch (state)
         {
         case State::init:
         {
             delay(1000);
+            EPD32::cancel = false;
             Serial.println("init");
-            program = Program::mandelbrot;
             showText(programName(program));
             state = State::menuIdle;
         }
@@ -313,17 +357,18 @@ class EPD32
         {
             if (buttonDown())
             {
-                delay(1000);
-                if (!buttonDown())
+                delay(500);
+                if (buttonDown())
+                {
+                    Serial.printf("start program %s\n", programName(program));
+                    state = State::startProgram;
+                    ignoreButtonDown = true;
+                }
+                else
                 {
                     program = nextProgram(program);
                     Serial.printf("next program %s\n", programName(program));
                     showText(programName(program));
-                }
-                else
-                {
-                    Serial.printf("start program %s\n", programName(program));
-                    state = State::startProgram;
                 }
             }
         }
@@ -338,6 +383,18 @@ class EPD32
                 state = State::runProgram;
             }
             break;
+            case Program::gameOfLife:
+            {
+                startGameOfLife();
+                state = State::runProgram;
+            }
+            break;
+            case Program::hypnotize:
+            {
+                startHypnotize();
+                state = State::runProgram;
+            }
+            break;
             default:
                 break;
             };
@@ -345,10 +402,9 @@ class EPD32
         break;
         case State::runProgram:
         {
-            // TODO: support interrupt
-            // TODO: require button up
             if (buttonDown())
             {
+                ignoreButtonDown = true;
                 state = State::init;
                 return;
             }
@@ -360,9 +416,31 @@ class EPD32
                 runMandelbrot();
             }
             break;
+            case Program::gameOfLife:
+            {
+                runGameOfLife();
+            }
+            break;
+            case Program::hypnotize:
+            {
+                runHypnotize();
+            }
+            break;
             default:
                 break;
             };
+        }
+        break;
+        case State::idle:
+        {
+            if (buttonDown())
+            {
+                ignoreButtonDown = true;
+                state = State::init;
+                return;
+            }
+
+            // sleep();
         }
         break;
         default:
@@ -373,12 +451,13 @@ class EPD32
         }
     }
 
+    static volatile bool cancel;
+
 public:
     void setup()
     {
-        pinMode(BUTTON_OUT, OUTPUT);
-        digitalWrite(BUTTON_OUT, HIGH);
-        pinMode(BUTTON_IN, INPUT);
+        pinMode(BUTTON_IN, INPUT_PULLDOWN);
+        attachInterrupt(digitalPinToInterrupt(BUTTON_IN), handleButton, RISING);
 
         Serial.begin(BAUD);
 
@@ -390,11 +469,19 @@ public:
         strip.show();
     }
 
+    static void IRAM_ATTR handleButton()
+    {
+        EPD32::cancel = true;
+        Serial.println("button");
+    }
+
     void run()
     {
         _run();
     }
 };
+
+volatile bool EPD32::cancel = false;
 
 EPD32 epd32{};
 
