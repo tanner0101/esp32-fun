@@ -8,28 +8,6 @@
 #include <ctime>
 #include <string>
 
-constexpr auto EPD_DC = 1;
-constexpr auto EPD_RES = 2;
-constexpr auto EPD_BUSY = 3;
-// constexpr auto EPD_SCL = 4;
-// constexpr auto EPD_SDA = 6;
-constexpr auto EPD_CS = 7;
-
-constexpr auto DEBUG = true;
-
-constexpr auto HEIGHT = GxEPD2_213_BN::HEIGHT;
-constexpr auto WIDTH = GxEPD2_213_BN::WIDTH_VISIBLE;
-GxEPD2_BW<GxEPD2_213_BN, HEIGHT> display(GxEPD2_213_BN(EPD_CS, EPD_DC, EPD_RES, EPD_BUSY));
-
-// constexpr auto HEIGHT = GxEPD2_213_Z19c::HEIGHT;
-// constexpr auto WIDTH = GxEPD2_213_Z19c::WIDTH_VISIBLE;
-// GxEPD2_3C<GxEPD2_213_Z19c, GxEPD2_213_Z19c::HEIGHT> display(GxEPD2_213_Z19c(EPD_CS, EPD_DC, EPD_RES, EPD_BUSY));
-
-constexpr auto BAUD = 115200;
-
-constexpr auto BUTTON_OUT = 8;
-constexpr auto BUTTON_IN = 10;
-
 class EPD32
 {
     enum class State
@@ -51,21 +29,44 @@ class EPD32
 
     Program program{Program::mandelbrot};
 
+    static constexpr auto EPD_DC = 1;
+    static constexpr auto EPD_RES = 2;
+    static constexpr auto EPD_BUSY = 3;
+    // constexpr auto EPD_SCL = 4;
+    // constexpr auto EPD_SDA = 6;
+    static constexpr auto EPD_CS = 7;
+
+    static constexpr auto DEBUG = true;
+
+    static constexpr auto HEIGHT = GxEPD2_213_BN::HEIGHT;
+    static constexpr auto WIDTH = GxEPD2_213_BN::WIDTH_VISIBLE;
+
+    // constexpr auto HEIGHT = GxEPD2_213_Z19c::HEIGHT;
+    // constexpr auto WIDTH = GxEPD2_213_Z19c::WIDTH_VISIBLE;
+    // GxEPD2_3C<GxEPD2_213_Z19c, GxEPD2_213_Z19c::HEIGHT> display(GxEPD2_213_Z19c(EPD_CS, EPD_DC, EPD_RES, EPD_BUSY));
+
+    static constexpr auto BAUD = 115200;
+
+    static constexpr auto BUTTON_OUT = 8;
+    static constexpr auto BUTTON_IN = 10;
+
+    GxEPD2_BW<GxEPD2_213_BN, HEIGHT> display{GxEPD2_213_BN(EPD_CS, EPD_DC, EPD_RES, EPD_BUSY)};
+
     bool buttonDown()
     {
         return digitalRead(BUTTON_IN);
     }
 
-    const char *programName(Program program)
+    const char *programName(Program &program)
     {
         switch (program)
         {
         case Program::mandelbrot:
             return "mandelbrot";
-        case Program::hypnotize:
-            return "hypnotize";
         case Program::gameOfLife:
             return "game of life";
+        case Program::hypnotize:
+            return "hypnotize";
         default:
             return "unknown";
         }
@@ -76,10 +77,10 @@ class EPD32
         switch (current)
         {
         case Program::mandelbrot:
-            return Program::hypnotize;
-        case Program::hypnotize:
             return Program::gameOfLife;
         case Program::gameOfLife:
+            return Program::hypnotize;
+        case Program::hypnotize:
             return Program::mandelbrot;
         default:
             return Program::mandelbrot;
@@ -117,6 +118,7 @@ class EPD32
 
     void startMandelbrot()
     {
+        clearWindow(true);
         i = 3;
         display.fillScreen(GxEPD_WHITE);
     }
@@ -281,14 +283,16 @@ class EPD32
         display.display(true);
     }
 
-    void clearWindow()
+    void clearWindow(bool partial)
     {
         display.setFullWindow();
+        display.setRotation(0);
+        display.setCursor(0, 0);
         display.firstPage();
         do
         {
             display.fillScreen(GxEPD_WHITE);
-        } while (display.nextPage());
+        } while (display.nextPage() && !partial);
     }
 
     void _run()
@@ -298,6 +302,8 @@ class EPD32
         {
         case State::init:
         {
+            delay(1000);
+            Serial.println("init");
             program = Program::mandelbrot;
             showText(programName(program));
             state = State::menuIdle;
@@ -339,6 +345,14 @@ class EPD32
         break;
         case State::runProgram:
         {
+            // TODO: support interrupt
+            // TODO: require button up
+            if (buttonDown())
+            {
+                state = State::init;
+                return;
+            }
+
             switch (program)
             {
             case Program::mandelbrot:
@@ -360,6 +374,22 @@ class EPD32
     }
 
 public:
+    void setup()
+    {
+        pinMode(BUTTON_OUT, OUTPUT);
+        digitalWrite(BUTTON_OUT, HIGH);
+        pinMode(BUTTON_IN, INPUT);
+
+        Serial.begin(BAUD);
+
+        display.init(BAUD, true, 50, false);
+
+        Adafruit_NeoPixel strip = Adafruit_NeoPixel(1, 7, NEO_GRB + NEO_KHZ800);
+        strip.begin();
+        strip.clear();
+        strip.show();
+    }
+
     void run()
     {
         _run();
@@ -370,26 +400,13 @@ EPD32 epd32{};
 
 void setup()
 {
-    pinMode(BUTTON_OUT, OUTPUT);
-    digitalWrite(BUTTON_OUT, HIGH);
-    pinMode(BUTTON_IN, INPUT);
-
-    Serial.begin(BAUD);
-
-    display.init(BAUD, true, 50, false);
-
-    Adafruit_NeoPixel strip = Adafruit_NeoPixel(1, 7, NEO_GRB + NEO_KHZ800);
-    strip.begin();
-    strip.clear();
-    strip.show();
-    strip.setPixelColor(0, strip.Color(255, 0, 0));
-
     // clearWindow();
-    // helloWorld();
     // hypnotize();
     // fuzz();
     // gameOfLife();
     // drawMandelbrot();
+
+    epd32.setup();
 }
 
 void loop()
