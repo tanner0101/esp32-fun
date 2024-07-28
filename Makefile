@@ -1,5 +1,3 @@
-.PHONY: compile upload monitor
-
 # ESP32_BOARD=esp32:esp32:esp32
 # ESP32_BOARD=esp32:esp32:esp32c6
 # DEV_PATH=/dev/ttyUSB0
@@ -14,3 +12,6 @@ flash:
 
 log:
 	arduino-cli monitor -p $(DEV_PATH) -b $(ESP32_BOARD) --config baudrate=115200
+
+clean:
+	arduino-cli cache clean
