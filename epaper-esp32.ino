@@ -38,11 +38,10 @@ void setup()
 
     display.init(BAUD, true, 50, false);
 
-    // Adafruit_NeoPixel strip = Adafruit_NeoPixel(1, 8, NEO_GRB + NEO_KHZ800);
-    // strip.begin();
-    // strip.clear();
-    // strip.show();
-    // strip.setPixelColor(0, strip.Color(255, 0, 0));
+    Adafruit_NeoPixel strip = Adafruit_NeoPixel(1, 7, NEO_GRB + NEO_KHZ800);
+    strip.begin();
+    strip.clear();
+    strip.show();
 
     // clearWindow();
     // helloWorld();
