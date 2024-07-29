@@ -1,0 +1,25 @@
+{
+    "configurations": [
+        {
+            "name": "Linux",
+            "includePath": [
+                "${workspaceFolder}/**",
+                "/home/tanner/Arduino/libraries/**",
+                "/home/tanner/.arduino15/packages/esp32/hardware/esp32/3.0.1/cores/esp32/**",
+                "/home/tanner/.arduino15/packages/esp32/hardware/esp32/3.0.1/variants/esp32c3/**",
+                "/home/tanner/.arduino15/packages/esp32/hardware/esp32/3.0.1/libraries/**",
+                "/home/tanner/.arduino15/packages/esp32/tools/esp32-arduino-libs/idf-release_v5.1-442a798083/esp32c3/**",
+                "/home/tanner/.arduino15/packages/esp32/tools/esp32-arduino-libs/idf-release_v5.1-442a798083/esp32c3/include/newlib/platform_include",
+                "/home/tanner/.arduino15/packages/esp32/tools/esp-x32/2302/xtensa-esp32-elf/include"
+            ],
+            "defines": [
+                "ARDUINO=101"
+            ],
+            "compilerPath": "/usr/bin/clang",
+            "cStandard": "c17",
+            "cppStandard": "c++17",
+            "intelliSenseMode": "linux-clang-x64"
+        }
+    ],
+    "version": 4
+}

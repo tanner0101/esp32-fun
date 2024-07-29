@@ -1,0 +1,33 @@
+[package]
+name = "hello-rust-esp32"
+version = "0.1.0"
+authors = ["tanner0101 <me@tanner.xyz>"]
+edition = "2021"
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+embedded-hal = "1.0.0"
+esp-backtrace = { version = "0.13.0", features = [
+    "esp32c6",
+    "exception-handler",
+    "panic-handler",
+    "println",
+] }
+esp-hal = { version = "0.19.0", features = [ "esp32c6", "embedded-hal" ] }
+esp-println = { version = "0.10.0", features = ["esp32c6", "log"] }
+log = { version = "0.4.21" }
+smart-leds = "0.4.0"
+ws2812-spi = "0.4.0"
+[profile.dev]
+# Rust debug is too slow.
+# For debug builds always builds with some optimization
+opt-level = "s"
+
+[profile.release]
+codegen-units = 1 # LLVM can perform better optimizations using a single thread
+debug = 2
+debug-assertions = false
+incremental = false
+lto = 'fat'
+opt-level = 's'
+overflow-checks = false
